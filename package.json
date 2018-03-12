@@ -1,0 +1,17 @@
+{
+  "name": "rabbit-wrapper",
+  "version": "1.0.13",
+  "description": "",
+  "main": "./lib/rabbitWrapper.js",
+  "types": "./lib/rabbitWrapper.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Gaia",
+  "license": "ISC",
+  "dependencies": {
+    "rabbot": "^1.1.0"
+  },
+  "devDependencies": {}
+}
