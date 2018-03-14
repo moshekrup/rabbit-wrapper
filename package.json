@@ -2,8 +2,8 @@
   "name": "rabbit-wrapper",
   "version": "1.0.13",
   "description": "",
-  "main": "./lib/rabbitWrapper.js",
-  "types": "./lib/rabbitWrapper.d.ts",
+  "main": "./build/rabbitWrapper.js",
+  "types": "./build/rabbitWrapper.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

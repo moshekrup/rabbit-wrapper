@@ -30,8 +30,20 @@ export interface IConfigInit extends IConfig {
     defaultExchange: string;
 }
 
-export interface IValidHandle<T> {
+export interface IRpcValidHandle<T> {
     (msg: IMsgJsonRpcRequest<T>): void;
+}
+
+export interface IBodyValidateMsg<T> extends IMsg {
+    body: T
+}
+
+export interface IMsgResponse<T> extends IMsg {
+    body: T;
+}
+
+export interface IValidHandle<T> {
+    (msg: IBodyValidateMsg<T>): void;
 }
 
 export interface IErrorHandle {
@@ -57,7 +69,7 @@ export class RabbitmqWrapper {
     }
 
     public static async addConnection(options: IConnectionOptions): Promise<IConnectionResult> {
-        let result = await rabbot.addConnection(options);
+        const result = await rabbot.addConnection(options);
         return {
             name: result.name,
             options: result.options
@@ -90,17 +102,17 @@ export class RabbitmqWrapper {
      * @param autoSubscribe // auto-start the subscription, the default is false
      */
     public static async addQueue(queueName: string, limit = 100, queueLimit = 10000, autoDelete = false, durable = true, noBatch = true, exclusive = false, autoSubscribe = false) : Promise<IQueueResult> {
-        let options = { 
-            limit: limit, 
-            queueLimit: queueLimit, 
-            autoDelete: autoDelete, 
-            durable: durable, 
-            noBatch: noBatch,
-            exclusive: exclusive, 
+        const options = { 
+            limit, 
+            queueLimit, 
+            autoDelete, 
+            durable, 
+            noBatch,
+            exclusive, 
             subscribe: autoSubscribe
         }
 
-        let result = await rabbot.addQueue(queueName, options);
+        const result = await rabbot.addQueue(queueName, options);
         if (!autoSubscribe)
             RabbitmqWrapper._addToManualSubscribeList(queueName);
         return {
@@ -115,25 +127,25 @@ export class RabbitmqWrapper {
      * The publish call returns a promise that is only resolved once the broker has accepted responsibility for the message.
      * @param {string} exchange exchange name.
      * @param {object} body json contents.
-     * @param {string} routeingKey routing key
+     * @param {string} routingKey routing key
      * @param {boolean} persistent If either message or exchange defines persistent=true queued messages will be saved to disk.
      * @param {number} timeout ms to wait before cancelling the publish and rejecting the promise
      * @param {string} exchange
      */
-    public static async publish(body: object, routeingKey: string, timeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<void> {
-        let options: IPublishOptions = {
+    public static async publish(body: object, routingKey: string, timeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<void> {
+        const options: IPublishOptions = {
             contentType: contentTypes.json,
-            routingKey: routeingKey,
-            body: body,
-            persistent: persistent,
-            timeout: timeout,
+            routingKey,
+            body,
+            persistent,
+            timeout,
         };
 
         await rabbot.publish(exchange, options);
     }
 
     /**
-     * High level rpc request (see request description) 
+     * High level rpc request (see request description)
      * this function get T that defined expected result structure (in json rpc body), 
      * the function results is promise of IJsonRpcSuccess<T>
      * NOTE: the promise will be rejected in one of the following casses: 
@@ -141,33 +153,39 @@ export class RabbitmqWrapper {
      *  the responses body includes rpc error (like IJsonRpcError interface)
      *  the 'result' property in body response is not match to expected T
      * @param body body of the request
-     * @param routeingKey routing key
-     * @param validatorResult function that check if the result in json rpc body match to expected structure (the validator func should throw an error if faild to validate)
+     * @param routingKey routing key
+     * @param validatorRPCResult function that check if the response is valid json rpc and if the 'result' property 
+     *  in the json rpc match to expected structure (the validator func should throw an error if faild to validate)
      * @param replyTimeout ms to wait before cancelling the publish and rejecting the promise
      * @param persistent If either message or exchange defines persistent=true queued messages will be saved to disk.
      * @param exchange 
      */
-    public static async requestHighLevel<T>(body: object, routeingKey: string, validatorResult: IValidator<T>, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsgRpcSuccess<T>> {
-        let res: IMsg = await RabbitmqWrapper.request(body, routeingKey, replyTimeout, persistent, exchange);
-        JsonRpc.validateResponse(res.body, validatorResult);
-        return res as IMsgRpcSuccess<T>;
+    public static async highLevelRPCRequest<T>(body: object, routingKey: string, validatorRPCResult: IValidator<T>, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsgRpcSuccess<T>> {
+        const validatorRpcRes = (body: any): body is IJsonRpcSuccess<T> => JsonRpc.validateResponse(body, validatorRPCResult);
+        return RabbitmqWrapper.highLevelRequest(body, routingKey, validatorRpcRes, replyTimeout, persistent, exchange);
+    }
+
+    public static async highLevelRequest<T>(body: object, routingKey: string, validator: IValidator<T>, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsgResponse<T>> {
+        const res = await RabbitmqWrapper.request(body, routingKey, replyTimeout, persistent, exchange);
+        validator(res.body);
+        return res as IMsgResponse<T>;
     }
 
     /**
-     * This works just like a publish except that the promise returned provides the response (or responses) from the other side.
+     * From Rabbot docs: This works just like a publish except that the promise returned provides the response (or responses) from the other side.
      * A replyTimeout is available in the options that controls how long rabbot will wait for a reply 
      * before removing the subscription for the request to prevent memory leaks.
      * NOTE: There are two required fields in order for the reply queue to read the pick up on the message.
      *  The headers must contain a sequence_end=true field
      *  And the message properties must contain a correlationId field that is the messageId of the outgoing message.
      */
-    public static async request(body: object, routeingKey: string, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsg> {
-        let options: IRequestOptions = {
+    public static async request(body: object, routingKey: string, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsg> {
+        const options: IRequestOptions = {
             contentType: contentTypes.json,
-            routingKey: routeingKey,
-            body: body,
-            persistent: persistent,
-            replyTimeout: replyTimeout
+            routingKey,
+            body,
+            persistent,
+            replyTimeout
         };
 
         return await rabbot.request(exchange, options);
@@ -191,12 +209,12 @@ export class RabbitmqWrapper {
      * NOTE: important that Handle calls should happen before starting subscriptions.
     */
     public static addHandler(queue: string, handle: IHandle, autoNack = true): IHandleResult {
-        let options: IHandleMsgOptions = {
+        const options: IHandleMsgOptions = {
             queue: queue, // only handle messages from the queue with this name
             autoNack: autoNack, // automatically handle exceptions thrown in this handler
         }
 
-        let result = rabbot.handle(options, handle);
+        const result = rabbot.handle(options, handle);
 
         return {
             topic: result.topic,
@@ -209,22 +227,39 @@ export class RabbitmqWrapper {
     }
 
     /**
-     * High level function for add rpc handler to specific key
+     * High level function for add handler to specific key
      * this function create queue(with default params) bind it to exchange and add handler to the created queue.
-     * Note 1: the name of queue that will be created is like the given key
-     * Note 2: the invalidHandle will be fired in one of the following casses: 
+     * Note : the name of queue that will be created is like the given key
+    */
+    public static async addHighLevelHandler(key: string, handler: IHandle, exchange = RabbitmqWrapper._defaultExchange): Promise<IHandleResult> {
+        await RabbitmqWrapper.addQueue(key);
+        await RabbitmqWrapper.bindQueue(key, key, exchange);
+        return RabbitmqWrapper.addHandler(key, handler);
+    }
+
+    /**
+     * High level function for add handler to specific key and execute validate rpc on received data (throw error if it is not jsonRpc standard)
+     * Note: the invalidHandle will be fired in one of the following casses: 
      *  the message is not match to rpc standard 
      *  the message includes rpc error (like IJsonRpcError interface)
-     *  the 'params' property in body message is not match to expected T
+     *  the 'params' property in rpc body is not match to expected T
      * @param handler The message (as IMsgJsonRpcRequest<T>) that is passed to the handler is the raw Rabbit payload, The body property contains the message body published (params is the given T).
-     * @param validatorParams Validator function, Get IJsonRpcRequest<any> and return IJsonRpcRequest<T> if the params is T, (the validator func should throw an error if faild to validate).
-     * @param invalidHandle func that fired when throw error (it means that the message published is not like expected T).
+     * @param validatorParams Validator function, Get IJsonRpcRequest<any> and return IJsonRpcRequest<T> if the params are T, (the validator func should throw an error if faild to validate).
+     * @param invalidHandle func that fired when throw an error.
+    */
+    public static async addRPCValidateHandler<T>(key: string, handler: IRpcValidHandle<T>, validatorParams: IValidator<T>, invalidHandle: IErrorHandle, exchange = RabbitmqWrapper._defaultExchange): Promise<IHandleResult> {
+        var validatorRPC = (body: any): body is IJsonRpcRequest<T> => JsonRpc.validateRequest(body, validatorParams);
+        return RabbitmqWrapper.addHighLevelHandler(key, RabbitmqWrapper._validateBodyHandle(handler, validatorRPC, invalidHandle));
+    }
+
+     /**
+     * High level function for add handler to specific key and validate received data
+     * @param handler The message that is passed to the handler is the raw Rabbit payload, The body property contains the message body published as T.
+     * @param validator Validator function (the validator func should throw an error if faild to validate).
+     * @param invalidHandle func that fired when throw an error.
      */
-    public static async addRpcHighLevelHandler<T>(key: string, handler: IValidHandle<T>, validatorParams: IValidator<T>, invalidHandle: IErrorHandle, exchange = RabbitmqWrapper._defaultExchange): Promise<IHandleResult> {
-        let queueName = key;
-        await RabbitmqWrapper.addQueue(queueName);
-        await RabbitmqWrapper.bindQueue(queueName, key, exchange);
-        return RabbitmqWrapper.addHandler(queueName, RabbitmqWrapper._rpcValidateHandle(handler, validatorParams, invalidHandle));
+    public static async addValidateHandler<T>(key: string, handler: IValidHandle<T>, validator: IValidator<T>, invalidHandle: IErrorHandle, exchange = RabbitmqWrapper._defaultExchange): Promise<IHandleResult> {
+        return RabbitmqWrapper.addHighLevelHandler(key, RabbitmqWrapper._validateBodyHandle(handler, validator, invalidHandle));
     }
 
     /**
@@ -236,11 +271,11 @@ export class RabbitmqWrapper {
         }
     }
 
-    private static _rpcValidateHandle<T>(handle: IValidHandle<T>, validatorParams: IValidator<T>, invalidHandle: IErrorHandle): IHandle {
+    private static _validateBodyHandle<T>(handle: IValidHandle<T>, validator: IValidator<T>, invalidHandle: IErrorHandle): IHandle {
         return function(msg: IMsg): void {
             try {
-                JsonRpc.validateRequest(msg.body, validatorParams);
-                handle(msg as IMsgJsonRpcRequest<T>);
+                validator(msg.body);
+                handle(msg);
             }
             catch (error) {
                 invalidHandle(error, msg);

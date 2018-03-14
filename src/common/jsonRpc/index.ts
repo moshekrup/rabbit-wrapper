@@ -68,8 +68,7 @@ export class JsonRpc {
         if (msg)
             throw new RpcError(msg, body);
         
-        validatorResult((body as IJsonRpcSuccess<any>).result);
-        return true;
+        return validatorResult((body as IJsonRpcSuccess<any>).result);
     }
 
     static validateRequest<T>(body: any, validatorParams: IValidator<T>): body is IJsonRpcRequest<T> {
@@ -95,8 +94,7 @@ export class JsonRpc {
         if (msg)
             throw new RpcError(msg, body);
         
-        validatorParams((body as IJsonRpcRequest<any>).params);
-        return true;
+        return validatorParams((body as IJsonRpcRequest<any>).params);
     }
 
     private static _checkError(body: any): string | undefined {
