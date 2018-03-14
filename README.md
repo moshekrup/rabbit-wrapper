@@ -12,7 +12,7 @@ Interface IMsgBody {
 }
 
 // Need to wrapper in async function
-await rabbit.initialize( 
+await rabbit.initialize({
   defaultExchange: 'test',
   connection: {
         user: "guest",
@@ -20,7 +20,7 @@ await rabbit.initialize(
         server: "127.0.0.1",
         port: 5672
   }
-);
+});
 
 rabbit.addValidateHandler<IMsgBody>('queueName', handler, validator, errorHandler);
 
