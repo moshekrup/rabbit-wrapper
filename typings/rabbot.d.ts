@@ -200,7 +200,7 @@ declare module rabbot {
         
     function publish(exchangeName: string, options?: IPublishOptions, connectionName?: string): Promise<void>;
 
-    function bulkPublish(set: IHashFormat | IBulkPublicOptions[], connectionName?: string): Promise<void>;
+    function bulkPublish(set: IHashPublishBulkFormat | IBulkPublicOptions[], connectionName?: string): Promise<void>;
 
     function request(exchangeName: string, options: IRequestOptions, connectionName?: string): Promise<IMsg>;
 
