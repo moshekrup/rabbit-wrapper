@@ -2,12 +2,12 @@
 High level library (base on [rabbot](https://github.com/arobson/rabbot)) to simplify the implementation of several messaging patterns on RabbitMQ.
 this library wrapped rabbot and added some validation capabilities on received messages (such as jsonRPC validation).
 
-## API Example
+## Example
 
 ```ts
 import { rabbit } from 'rabbit-wrapper';
 
-Interface IMsgBody {
+interface IMsgBody {
   test: string;
 }
 
@@ -36,7 +36,7 @@ catch {
   console.log('the response data is not valid (not include test property)');
 }
 
-validator(data: any): boolean {
+function validator(data: any): boolean {
     if (data.test && typeof data.test === 'string')
       return true;
     else 
@@ -44,22 +44,22 @@ validator(data: any): boolean {
 }
 
 // Fired when new jsonRpc valid received
-rpcHandler(msg: IMsgJsonRpcRequest<IMsgBody>): void {
+function rpcHandler(msg: IMsgJsonRpcRequest<IMsgBody>): void {
   // the data is valid jsonRpc  Do something...
 }
 
 // Fired when new valid data received
-handler(msg: IMsgBody): void {
+function handler(msg: IMsgBody): void {
   // the received data is valid Do something...
 }
 
 // Fired when validator function will throw an error
-errorHandler (error: string, msg: IMsg): void {
+function errorHandler (error: string, msg: IMsg): void {
   console.log(error);
 }
 
 // Fired when validator function will throw an error or when the received data is not matched to jsonRpc standard
-rpcErrorHandler (error: string, msg: IMsg): void {
+function rpcErrorHandler (error: string, msg: IMsg): void {
   console.log(error);
 }
 ```
