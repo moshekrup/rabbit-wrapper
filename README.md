@@ -5,14 +5,14 @@ this library wrapped rabbot and added some validation capabilities on received m
 ## Example
 
 ```ts
-import { rabbit } from 'rabbit-wrapper';
+import { RabbitmqWrapper } from 'rabbit-wrapper';
 
 interface IMsgBody {
   test: string;
 }
 
 // Need to wrapper in async function
-await rabbit.initialize({
+await RabbitmqWrapper.initialize({
   defaultExchange: 'test',
   connection: {
         user: "guest",
@@ -22,12 +22,12 @@ await rabbit.initialize({
   }
 });
 
-rabbit.addValidateHandler<IMsgBody>('queueName', handler, validator, errorHandler);
+RabbitmqWrapper.addValidateHandler<IMsgBody>('queueName', handler, validator, errorHandler);
 
-rabbit.addRPCValidateHandler<IMsgBody>('queueName', rpcHandler, validator, rpcErrorHandler);
+RabbitmqWrapper.addRPCValidateHandler<IMsgBody>('queueName', rpcHandler, validator, rpcErrorHandler);
 
 try {
-  const res = await rabbbit.highLevelRequest<IMsgBody>(({data: 'testData'}, 'routingKey', validator);
+  const res = await RabbitmqWrapper.highLevelRequest<IMsgBody>(({data: 'testData'}, 'routingKey', validator);
   // response is valid (matched to IMsgBody)
   console.log(res.test);
   res.ack();
@@ -45,7 +45,7 @@ function validator(data: any): boolean {
 
 // Fired when new jsonRpc valid received
 function rpcHandler(msg: IMsgJsonRpcRequest<IMsgBody>): void {
-  // the data is valid jsonRpc  Do something...
+  // the data is valid jsonRpc, Do something...
 }
 
 // Fired when new valid data received

@@ -40,7 +40,7 @@ export interface IMsgRpcSuccess<T> extends IMsg {
 }
 
 export interface IValidator<T> {
-    // should throw an error if faild to validate
+    // should throw an error if failed to validate
     (data: any): data is T;
 }
 
