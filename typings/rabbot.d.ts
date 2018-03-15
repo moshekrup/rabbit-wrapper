@@ -75,8 +75,13 @@ declare module rabbot {
 		timeout?: number;
     }
 
+    interface IBulkPublicOptions extends IPublishOptions {
+        exchange: string;
+    }
+
     interface IRequestOptions extends IPublishOptions {
         replyTimeout?: number;
+        limit?: number;
     }
 
     interface IFieldsMsg {
@@ -157,6 +162,12 @@ declare module rabbot {
         }
     }
 
+    interface IHashPublishBulkFormat {
+        [key: string]: [
+            IPublishOptions
+        ]
+    }
+
     interface IConnectionDetails {
         channels: object;
         connection: any;
@@ -188,6 +199,8 @@ declare module rabbot {
     function handle(options: IHandleMsgOptions, handler: IHandle): IHandlerReply;
         
     function publish(exchangeName: string, options?: IPublishOptions, connectionName?: string): Promise<void>;
+
+    function bulkPublish(set: IHashFormat | IBulkPublicOptions[], connectionName?: string): Promise<void>;
 
     function request(exchangeName: string, options: IRequestOptions, connectionName?: string): Promise<IMsg>;
 

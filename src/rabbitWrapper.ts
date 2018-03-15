@@ -1,7 +1,7 @@
 /// <reference path="../typings/rabbot.d.ts"/>
 import * as rabbot from 'rabbot';
 import { IHandleMsgOptions, IQueueOptions, IHandle, IRequestOptions,
-    IConfig, IPublishOptions, IMsg, IConnectionOptions } from 'rabbot';
+    IConfig, IPublishOptions, IMsg, IConnectionOptions, IBulkPublicOptions, IHashPublishBulkFormat } from 'rabbot';
 import { IJsonRpcFailure, IJsonRpcRequest, 
     IJsonRpcError, JsonRpc, IMsgJsonRpcRequest, RpcError, IJsonRpcResponse, IJsonRpcSuccess, IMsgRpcSuccess, IValidator } from './common/jsonRpc';
 
@@ -144,6 +144,34 @@ export class RabbitmqWrapper {
         await rabbot.publish(exchange, options);
     }
 
+    public static async bulkPublish(options: IBulkPublicOptions[] | IHashPublishBulkFormat): Promise<void> {
+        await rabbot.bulkPublish(options);
+    }
+
+    /**
+     * From Rabbot docs: This works just like a publish except that the promise returned provides the response (or responses) from the other side.
+     * A replyTimeout and limit is available in the options
+     * before removing the subscription for the request to prevent memory leaks.
+     * NOTE: There are two required fields in order for the reply queue to read the pick up on the message.
+     *  ('reply' method (in message object) wrapper it for you, the fields needed when yot dont use this method)
+     *  The headers must contain a sequence_end=true field
+     *  And the message properties must contain a correlationId field that is the messageId of the outgoing message.
+     * @param replyTimeout ms to wait before cancelling the publish and rejecting the promise
+     * @param limit will stop after 3 even if many more reply.
+    */
+    public static async request(body: object, routingKey: string, replyTimeout?: number, limit?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsg> {
+        const options: IRequestOptions = {
+            contentType: contentTypes.json,
+            routingKey,
+            body,
+            persistent,
+            replyTimeout,
+            limit
+        };
+
+        return await rabbot.request(exchange, options);
+    }
+
     /**
      * High level rpc request (see request description)
      * this function get T that defined expected result structure (in json rpc body), 
@@ -160,35 +188,28 @@ export class RabbitmqWrapper {
      * @param persistent If either message or exchange defines persistent=true queued messages will be saved to disk.
      * @param exchange 
      */
-    public static async highLevelRPCRequest<T>(body: object, routingKey: string, validatorRPCResult: IValidator<T>, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsgRpcSuccess<T>> {
-        const validatorRpcRes = (body: any): body is IJsonRpcSuccess<T> => JsonRpc.validateResponse(body, validatorRPCResult);
-        return RabbitmqWrapper.highLevelRequest(body, routingKey, validatorRpcRes, replyTimeout, persistent, exchange);
+    public static async highLevelRPCRequest<T>(body: object, routingKey: string, validatorRPCResult: IValidator<T>, 
+        replyTimeout?: number, limit?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): 
+        Promise<IMsgRpcSuccess<T>> {
+            const validatorRpcRes = (body: any): body is IJsonRpcSuccess<T> => 
+                JsonRpc.validateResponse(body, validatorRPCResult);
+            return RabbitmqWrapper.highLevelRequest(
+                body, 
+                routingKey, 
+                validatorRpcRes, 
+                replyTimeout, 
+                limit, 
+                persistent, 
+                exchange
+            );
     }
 
-    public static async highLevelRequest<T>(body: object, routingKey: string, validator: IValidator<T>, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsgResponse<T>> {
-        const res = await RabbitmqWrapper.request(body, routingKey, replyTimeout, persistent, exchange);
-        validator(res.body);
-        return res as IMsgResponse<T>;
-    }
-
-    /**
-     * From Rabbot docs: This works just like a publish except that the promise returned provides the response (or responses) from the other side.
-     * A replyTimeout is available in the options that controls how long rabbot will wait for a reply 
-     * before removing the subscription for the request to prevent memory leaks.
-     * NOTE: There are two required fields in order for the reply queue to read the pick up on the message.
-     *  The headers must contain a sequence_end=true field
-     *  And the message properties must contain a correlationId field that is the messageId of the outgoing message.
-     */
-    public static async request(body: object, routingKey: string, replyTimeout?: number, persistent = true, exchange = RabbitmqWrapper._defaultExchange): Promise<IMsg> {
-        const options: IRequestOptions = {
-            contentType: contentTypes.json,
-            routingKey,
-            body,
-            persistent,
-            replyTimeout
-        };
-
-        return await rabbot.request(exchange, options);
+    public static async highLevelRequest<T>(body: object, routingKey: string, validator: IValidator<T>, 
+        replyTimeout?: number, limit?: number, persistent = true, 
+        exchange = RabbitmqWrapper._defaultExchange): Promise<IMsgResponse<T>> {
+            const res = await RabbitmqWrapper.request(body, routingKey, replyTimeout, limit, persistent, exchange);
+            validator(res.body);
+            return res as IMsgResponse<T>;
     }
 
     /**
@@ -248,8 +269,11 @@ export class RabbitmqWrapper {
      * @param invalidHandle func that fired when throw an error.
     */
     public static async addRPCValidateHandler<T>(key: string, handler: IRpcValidHandle<T>, validatorParams: IValidator<T>, invalidHandle: IErrorHandle, exchange = RabbitmqWrapper._defaultExchange): Promise<IHandleResult> {
-        var validatorRPC = (body: any): body is IJsonRpcRequest<T> => JsonRpc.validateRequest(body, validatorParams);
-        return RabbitmqWrapper.addHighLevelHandler(key, RabbitmqWrapper._validateBodyHandle(handler, validatorRPC, invalidHandle));
+        const validatorRPC = (body: any): body is IJsonRpcRequest<T> => JsonRpc.validateRequest(body, validatorParams);
+        return RabbitmqWrapper.addHighLevelHandler(
+            key, 
+            RabbitmqWrapper._validateBodyHandle(handler, validatorRPC, invalidHandle)
+        );
     }
 
      /**
@@ -259,7 +283,10 @@ export class RabbitmqWrapper {
      * @param invalidHandle func that fired when throw an error.
      */
     public static async addValidateHandler<T>(key: string, handler: IValidHandle<T>, validator: IValidator<T>, invalidHandle: IErrorHandle, exchange = RabbitmqWrapper._defaultExchange): Promise<IHandleResult> {
-        return RabbitmqWrapper.addHighLevelHandler(key, RabbitmqWrapper._validateBodyHandle(handler, validator, invalidHandle));
+        return RabbitmqWrapper.addHighLevelHandler(
+            key, 
+            RabbitmqWrapper._validateBodyHandle(handler, validator, invalidHandle)
+        );
     }
 
     /**

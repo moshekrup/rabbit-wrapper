@@ -1,6 +1,6 @@
 {
   "name": "rabbit-wrapper",
-  "version": "1.0.13",
+  "version": "2.0.0",
   "description": "",
   "main": "./build/rabbitWrapper.js",
   "types": "./build/rabbitWrapper.d.ts",
@@ -8,10 +8,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "Gaia",
-  "license": "ISC",
+  "author": "moshekrup",
+  "license": "MIT",
   "dependencies": {
-    "rabbot": "^1.1.0"
+    "rabbot": "^2.1.0"
   },
   "devDependencies": {}
 }
